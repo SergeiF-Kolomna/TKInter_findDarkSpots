@@ -81,7 +81,6 @@ class ImageSelectorApp:
             self.selection_display.config(text=f"Selection Coordinates: {self.selection_coordinates}")
 
             # Extract the selected region from the original image
-            #selected_image = Image.open(self.image_path).crop(self.selection_coordinates)
             selected_image = self.mini_image.crop(self.selection_coordinates)
             selected_image_tk = ImageTk.PhotoImage(selected_image)
 
@@ -89,6 +88,7 @@ class ImageSelectorApp:
             self.selected_canvas.config(width=selected_image_tk.width(), height=selected_image_tk.height())
             self.selected_canvas.create_image(0, 0, anchor=tk.NW, image=selected_image_tk)
             self.selected_canvas.image = selected_image_tk  # Keep a reference to avoid garbage collection issues
+            self.selected_canvas.croped_image = selected_image
 
             self.selected_canvas.width = selected_image_tk.width()
             self.selected_canvas.height = selected_image_tk.height()
@@ -98,13 +98,9 @@ class ImageSelectorApp:
 
     def find_dark_spots(self, _=None):
         if self.image_path and self.selection_coordinates:
-            # Read the entire image
-            full_image = cv2.imread(self.image_path)
-
-            # Convert the selected region to grayscale
-            selected_region = full_image[int(self.selection_coordinates[1]):int(self.selection_coordinates[3]),
-                             int(self.selection_coordinates[0]):int(self.selection_coordinates[2])]
-            gray_selected_region = cv2.cvtColor(selected_region, cv2.COLOR_BGR2GRAY)
+            # Convert TK_image to cv2           
+            numpy_selected_image_tk =  np.array(self.selected_canvas.croped_image)
+            gray_selected_region = cv2.cvtColor(numpy_selected_image_tk, cv2.COLOR_BGR2GRAY)
 
             # Apply threshold to find dark spots
             _, thresholded = cv2.threshold(gray_selected_region, self.threshold_value.get(), 255, cv2.THRESH_BINARY_INV)
@@ -113,15 +109,15 @@ class ImageSelectorApp:
             contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             # Extract coordinates of dark spots with area more than 100 pixels
-            dark_spots_coordinates = [cv2.boundingRect(contour) for contour in contours if cv2.contourArea(contour) > 50]
+            dark_spots_coordinates = [cv2.boundingRect(contour) for contour in contours if (cv2.contourArea(contour) > 20 and cv2.contourArea(contour)<150)]
 
             # Update the attribute and display it
             self.dark_spots_coordinates = dark_spots_coordinates
             self.display_dark_spots()
-            self.thresholded=thresholded    #######################################################################
 
+            # Show negative
             self.negative_canvas.config(width=self.selected_canvas.width, height=self.selected_canvas.height)
-            negative_im = Image.fromarray(self.thresholded)
+            negative_im = Image.fromarray(thresholded)
             negative_img = ImageTk.PhotoImage(image=negative_im)
             self.negative_canvas.create_image(0, 0, anchor=tk.NW, image=negative_img)
             self.negative_canvas.image = negative_img
